@@ -3,9 +3,10 @@ import { blobSnapshotStore } from '../snapshot/store.ts'
 
 // Who is calling, so RIPE can reach the operator instead of just blocking.
 // Netlify sets URL to the site's primary address; SNAPSHOT_CONTACT overrides it
-// (an email address or a page about the project).
+// (an email address or a page about the project). Empty values count as unset,
+// since contexts without a value may pass an empty string.
 function userAgent(): string {
-  const contact = process.env.SNAPSHOT_CONTACT ?? process.env.URL ?? 'no contact configured'
+  const contact = process.env.SNAPSHOT_CONTACT || process.env.URL || 'no contact configured'
   return `internethealth-snapshot/1.0 (+${contact})`
 }
 
