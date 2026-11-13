@@ -12,8 +12,11 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (default http://localhost:5173). The page fetches on load, then every
-3 minutes while the tab is visible. **Refresh** fetches immediately.
+Open the URL Vite prints (default http://localhost:5173). The page fetches on load. After that,
+it refreshes on the **Auto-refresh** schedule you pick in the header: off, every 15 minutes (the
+default), every 30 minutes, or every hour. It only refreshes while the tab is visible, and the
+browser remembers your choice. **Refresh** fetches immediately. The default and the choices live in
+`src/thresholds.ts`.
 
 Each refresh is 20 GET requests (7 backbone + 13 root servers), at most 4 in flight. Each one is
 filtered to only the probes we need.

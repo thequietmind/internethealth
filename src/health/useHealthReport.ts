@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { REFRESH_INTERVAL_MS } from '../thresholds.ts'
 import { loadReport, type Report } from './report.ts'
 
 export interface HealthReportState {
@@ -9,9 +8,12 @@ export interface HealthReportState {
   refresh: () => void
 }
 
-// Loads on mount and every REFRESH_INTERVAL_MS. Skips ticks while the tab is
-// hidden and catches up as soon as it becomes visible again.
-export function useHealthReport(): HealthReportState {
+const TICK_MS = 15_000
+
+// Loads on mount, then every `intervalMs` (null = auto-refresh off; manual
+// refresh still works). Skips ticks while the tab is hidden and catches up as
+// soon as it becomes visible again.
+export function useHealthReport(intervalMs: number | null): HealthReportState {
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,21 +42,24 @@ export function useHealthReport(): HealthReportState {
   }, [])
 
   useEffect(() => {
-    const refreshIfDue = () => {
-      if (document.hidden) return
-      if (Date.now() - lastFetchRef.current >= REFRESH_INTERVAL_MS) refresh()
-    }
-
     // oxlint-disable-next-line react/set-state-in-effect -- the effect starts the initial fetch
     refresh()
-    const timer = setInterval(refreshIfDue, 15_000)
+    return () => controllerRef.current?.abort()
+  }, [refresh])
+
+  useEffect(() => {
+    if (intervalMs === null) return
+    const refreshIfDue = () => {
+      if (document.hidden) return
+      if (Date.now() - lastFetchRef.current >= intervalMs) refresh()
+    }
+    const timer = setInterval(refreshIfDue, TICK_MS)
     document.addEventListener('visibilitychange', refreshIfDue)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', refreshIfDue)
-      controllerRef.current?.abort()
     }
-  }, [refresh])
+  }, [intervalMs, refresh])
 
   return { report, loading, error, refresh }
 }

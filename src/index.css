@@ -657,3 +657,15 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.refresh-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.refresh-select select {
+  text-transform: none;
+}

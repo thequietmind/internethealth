@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react'
 import { CellInspector } from './components/CellInspector.tsx'
 import { HealthGrid } from './components/HealthGrid.tsx'
+import { RefreshSelect } from './components/RefreshSelect.tsx'
+import { useRefreshMinutes } from './components/useRefreshMinutes.ts'
 import { ThemeToggle } from './components/ThemeToggle.tsx'
 import { formatClock, formatMs } from './components/format.ts'
 import type { GridModel, Report } from './health/report.ts'
 import type { Health } from './health/stats.ts'
 import { useHealthReport } from './health/useHealthReport.ts'
-import { BACKBONE, REFRESH_INTERVAL_MS, ROOTS } from './thresholds.ts'
+import { BACKBONE, ROOTS } from './thresholds.ts'
 
 type GridName = 'backbone' | 'roots'
 
@@ -39,8 +41,11 @@ function Summary({ report }: { report: Report }) {
 }
 
 function Dashboard() {
-  const { report, loading, error, refresh } = useHealthReport()
-  const minutes = REFRESH_INTERVAL_MS / 60_000
+  const [refreshMinutes, setRefreshMinutes] = useRefreshMinutes()
+  const { report, loading, error, refresh } = useHealthReport(refreshMinutes ? refreshMinutes * 60_000 : null)
+  const cadence = refreshMinutes
+    ? `Refreshes every ${refreshMinutes === 60 ? 'hour' : `${refreshMinutes} minutes`}.`
+    : 'Auto-refresh is off.'
 
   return (
     <>
@@ -50,8 +55,7 @@ function Dashboard() {
             Internet Health Report <span className="blink-dot" data-live={!loading && !error} />
           </h1>
           <p className="tagline">
-            Latency and packet loss right now, from public RIPE Atlas measurements. Refreshes every {minutes}{' '}
-            minutes.
+            Latency and packet loss right now, from public RIPE Atlas measurements. {cadence}
           </p>
         </div>
         <div className="controls">
@@ -61,6 +65,7 @@ function Dashboard() {
           <button type="button" className="button" onClick={refresh} disabled={loading}>
             Refresh
           </button>
+          <RefreshSelect value={refreshMinutes} onChange={setRefreshMinutes} />
           <ThemeToggle />
         </div>
       </header>
