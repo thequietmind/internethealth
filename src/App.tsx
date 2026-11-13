@@ -191,9 +191,22 @@ export default function App() {
   return (
     <div className="page">
       <Dashboard />
-      <footer className="colophon">
-        Data: RIPE Atlas anchor mesh and built-in measurements. The backbone matrix is data centre to data
-        centre; it is not what home users experience. Hover a cell for details; click it for the per-probe breakdown.
+      <footer className="site-footer">
+        <p className="colophon">
+          Data: RIPE Atlas anchor mesh and built-in measurements. The backbone matrix is data centre to data
+          centre; it is not what home users experience. Hover a cell for details; click it for the per-probe
+          breakdown.
+        </p>
+        <p className="made-with">
+          Made with{' '}
+          <span role="img" aria-label="mindfulness" title="mindfulness">
+            🧘
+          </span>{' '}
+          by{' '}
+          <a href="https://quietmindcreative.com/" target="_blank" rel="noopener">
+            Quiet Mind Creative<span className="visually-hidden"> (opens in a new tab)</span>
+          </a>
+        </p>
       </footer>
     </div>
   )
