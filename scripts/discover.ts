@@ -58,7 +58,7 @@ const BACKBONE: BackboneWish[] = [
   },
 ]
 
-const HOME_ISPS: Omit<HomeIsp, 'probeIds' | 'connectedProbes'>[] = [
+const HOME_ISPS: Omit<HomeIsp, 'probeIds' | 'probeAsns' | 'connectedProbes'>[] = [
   { key: 'comcast', name: 'Comcast', asns: [7922] },
   // Charter still announces legacy Time Warner Cable / Bright House ASNs.
   {
@@ -149,7 +149,9 @@ async function discoverBackbone(): Promise<BackboneAnchor[]> {
       company: anchor.company,
       latitude: anchor.geometry.coordinates[1],
       longitude: anchor.geometry.coordinates[0],
+      af: meshPing.af,
       pingMsmId: meshPing.id,
+      pingInterval: meshPing.interval,
     })
   }
   return chosen
@@ -183,6 +185,17 @@ function rootLetter(host: string): string | undefined {
   return match?.[1].toUpperCase()
 }
 
+// The built-in UDP hostname.bind query (every 240 s). Its answer names the
+// anycast instance that replied, and its RTT stands in when ping is filtered.
+async function findHostnameBind(host: string): Promise<Measurement | undefined> {
+  const dnsMeasurements = await getAllPages<Measurement>(
+    `/measurements/?target=${host}&type=dns&af=4&status=2`,
+  )
+  return dnsMeasurements.find(
+    (measurement) => measurement.protocol === 'UDP' && measurement.query_argument === 'hostname.bind',
+  )
+}
+
 async function discoverRoots(): Promise<RootServer[]> {
   // Built-in measurements have low IDs; one page covers them.
   const pings = await getAllPages<Measurement>(
@@ -192,23 +205,39 @@ async function discoverRoots(): Promise<RootServer[]> {
   for (const letter of ROOT_LETTERS) {
     const host = `${letter.toLowerCase()}.root-servers.net`
     const ping = pings.find((measurement) => rootLetter(measurement.target) === letter)
+    const dns = await findHostnameBind(host)
+    if (!dns) console.warn(`  ${letter}-root: no built-in hostname.bind measurement`)
     if (ping) {
-      servers.push({ letter, host, targetIp: ping.target_ip, msmId: ping.id, kind: 'ping', interval: ping.interval })
+      servers.push({
+        letter,
+        host,
+        af: ping.af,
+        targetIp: ping.target_ip,
+        msmId: ping.id,
+        kind: 'ping',
+        interval: ping.interval,
+        dnsMsmId: dns?.id ?? null,
+        dnsInterval: dns?.interval ?? 0,
+      })
       continue
     }
-    // No ping (G-root drops ICMP): fall back to the 240 s hostname.bind DNS query.
-    const dnsMeasurements = await getAllPages<Measurement>(
-      `/measurements/?target=${host}&type=dns&af=4&status=2`,
-    )
-    const dns = dnsMeasurements
-      .filter((measurement) => measurement.protocol === 'UDP')
-      .sort((a, b) => a.interval - b.interval)[0]
+    // No ping (G-root drops ICMP): the hostname.bind query is the only RTT source.
     if (!dns) {
       console.warn(`  ${letter}-root: no built-in ping or DNS measurement, skipped`)
       continue
     }
     console.log(`  ${letter}-root: no ping, using DNS msm ${dns.id} (${dns.query_argument} ${dns.query_type})`)
-    servers.push({ letter, host, targetIp: dns.target_ip, msmId: dns.id, kind: 'dns', interval: dns.interval })
+    servers.push({
+      letter,
+      host,
+      af: dns.af,
+      targetIp: dns.target_ip,
+      msmId: dns.id,
+      kind: 'dns',
+      interval: dns.interval,
+      dnsMsmId: dns.id,
+      dnsInterval: dns.interval,
+    })
   }
   return servers
 }
@@ -238,8 +267,14 @@ async function discoverIsp(isp: (typeof HOME_ISPS)[number]): Promise<HomeIsp> {
     .sort((a, b) => a.status_since - b.status_since)
     .slice(0, MAX_PROBES_PER_ISP)
     .map((probe) => probe.id)
+  const probeAsns = Object.fromEntries(home.map((probe) => [probe.id, probe.asn_v4 ?? 0]))
   console.log(`  ${isp.name}: ${home.length} connected US home probes, using ${probeIds.length}`)
-  return { ...isp, probeIds, connectedProbes: home.length }
+  return {
+    ...isp,
+    probeIds,
+    probeAsns: Object.fromEntries(probeIds.map((id) => [id, probeAsns[id]])),
+    connectedProbes: home.length,
+  }
 }
 
 // --- Main ------------------------------------------------------------------

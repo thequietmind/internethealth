@@ -62,11 +62,43 @@ Every number lives in `src/thresholds.ts`:
 - **Root servers.** These use absolute limits: green ≤ 40 ms, yellow ≤ 100 ms. Loss is pooled
   across every packet from every probe in the ISP. Yellow starts at 2% loss because one dead home
   probe alone contributes about 1%. Red starts at 10%.
-- **Both grids.** Results older than `maxAgeSeconds` are ignored, and fewer than `minSamples` fresh
-  results makes a cell gray ("no data"). The worse of the latency rating and the loss rating wins.
+- **Both grids.** A result is fresh if it's at most `freshRounds × interval + 60 s` old, using each
+  measurement's own interval: 2 rounds for roots, and 3 for the backbone to match `versions`.
+  Fewer than `minSamples` fresh results makes a cell gray ("no data"). The worse of the latency
+  rating and the loss rating wins.
+
+### What counts as loss
+
+- **Ping.** Packets are counted from the per-packet `result` array. `{rtt}` is received
+  (duplicates are skipped), `{x: "*"}` is lost, and `{error}` is a local send failure that's
+  excluded. A probe that returned no result at all, or only stale or excluded ones, never counts
+  as loss.
+- **DNS.** Only a timeout is loss. Other errors are local failures and are excluded. An answer
+  with no `hostname.bind` TXT identity didn't come from the root (it's usually a home router
+  intercepting DNS), so it's excluded too.
+
+### Ping-filtered cells
+
+Some anycast instances drop ICMP echo but still answer DNS. If a root column shows ping loss, the
+app also fetches that root's built-in `hostname.bind` query results for the same probes. A probe
+counts as ping-filtered when its pings get no reply but the root answers its DNS query. If at
+least `pingFilteredShare` (50%) of a cell's probes are filtered, the cell is rated on DNS query
+time and DNS loss instead, and drawn hatched with a "dns" label. The color is still an honest
+rating; only the metric changes. Real outages, where DNS fails too (for example, Comcast → I-root
+when this was written), stay red on ping.
 
 Hover or focus a cell to see the source and target, median/min/max RTT, loss with packet counts,
 probe and result counts, the age of the newest result, and the thresholds applied.
+
+Click a cell (or press Enter on it) to open the inspector, which shows:
+
+- The measurement ID, linked to atlas.ripe.net, plus a link to the exact raw `/latest/` request.
+- The address family and target address.
+- The freshness window.
+- One row per requested probe, worst first, with its ASN, status, median/min/max RTT, packets
+  received, and age. Probe statuses are no reply, loss, ok, excluded, stale, and no result.
+  Excluded, stale, and no-result probes are listed, but they never count as loss. DNS-rated cells
+  also show which anycast instance answered each probe.
 
 ## What the grids do and don't mean
 

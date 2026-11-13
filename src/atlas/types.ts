@@ -52,7 +52,8 @@ export interface Measurement {
 
 // One entry of a ping result's `result` array. Lost packets are `{ x: "*" }`,
 // errors are `{ error: "..." }`; successful ones carry `rtt` (and sometimes `ttl`).
-export type PingPacket = { rtt: number; ttl?: number } | { x: '*' } | { error: string }
+// Duplicate replies carry `dup: 1` and must not count as an extra received packet.
+export type PingPacket = { rtt: number; ttl?: number; dup?: number } | { x: '*' } | { error: string }
 
 // Element of GET /measurements/{id}/latest/ for a ping measurement.
 // `avg/min/max` are -1 when every packet was lost; `avg` may be an int.
@@ -73,8 +74,15 @@ export interface PingResult {
   result: PingPacket[]
 }
 
+export interface DnsAnswer {
+  TYPE: string
+  NAME: string
+  RDATA?: string[]
+}
+
 // Element of /latest/ for a DNS measurement. `result.rt` is the query RTT in ms;
-// timeouts show up as `error: { timeout: 5000 }` with no `result`.
+// timeouts show up as `error: { timeout: 5000 }` with no `result`. For the
+// built-in hostname.bind queries, the TXT answer names the anycast instance.
 export interface DnsResult {
   type: 'dns'
   msm_id: number
@@ -82,7 +90,7 @@ export interface DnsResult {
   from: string
   dst_addr: string
   timestamp: number
-  result?: { rt: number; size: number }
+  result?: { rt: number; size: number; ANCOUNT?: number; answers?: DnsAnswer[] }
   error?: Record<string, unknown>
 }
 

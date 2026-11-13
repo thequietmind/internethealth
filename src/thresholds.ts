@@ -8,9 +8,13 @@ export interface LossThresholds {
   badPct: number // loss above this is red
 }
 
+// A result is fresh if it is at most `freshRounds × interval + FRESH_SLACK_SECONDS`
+// old, using each measurement's own interval.
+export const FRESH_SLACK_SECONDS = 60
+
 export interface GridThresholds {
   versions: number // how many recent results per probe to request from /latest/
-  maxAgeSeconds: number // results older than this are ignored
+  freshRounds: number // results older than this many measurement rounds are ignored
   minSamples: number // fewer fresh results than this => gray "no data"
   loss: LossThresholds
 }
@@ -21,7 +25,7 @@ export interface GridThresholds {
 // traffic in another metro (e.g. HE→Arelion in LA is ~10 ms).
 export const BACKBONE = {
   versions: 3, // 3 rounds × 3 packets ≈ last 12 minutes
-  maxAgeSeconds: 20 * 60,
+  freshRounds: 3, // matches `versions`: all requested rounds count
   minSamples: 2,
   latency: {
     good: { factor: 2, slackMs: 15 },
@@ -34,10 +38,15 @@ export const BACKBONE = {
 // Root servers are anycast, so a nearby instance should always be close.
 export const ROOTS = {
   versions: 1,
-  maxAgeSeconds: 15 * 60,
+  freshRounds: 2,
   minSamples: 5, // probes in the ISP with a fresh result
   latency: { goodMs: 40, warnMs: 100 },
   // Loss is pooled across ~300 packets. A single dead home probe adds ~1.1%,
   // which is noise, so yellow starts at 2%.
   loss: { warnPct: 2, badPct: 10 },
-} satisfies GridThresholds & { latency: unknown }
+  // Ping-filtered detection: a probe whose pings get no reply while its
+  // hostname.bind query to the same address is answered by the root is
+  // "ping filtered". If at least this share of a cell's probes are, the cell is
+  // rated on DNS query time and loss instead of ping, and drawn hatched.
+  pingFilteredShare: 0.5,
+} satisfies GridThresholds & { latency: unknown; pingFilteredShare: number }

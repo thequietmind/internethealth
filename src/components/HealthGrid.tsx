@@ -1,4 +1,4 @@
-import { useEffect, useState, type FocusEvent, type MouseEvent } from 'react'
+import { useEffect, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { cellKey, type Axis, type Cell, type GridModel } from '../health/report.ts'
 import { CellTooltip, type TooltipAnchor } from './CellTooltip.tsx'
 import { formatLoss, formatMs } from './format.ts'
@@ -7,6 +7,8 @@ interface HealthGridProps {
   caption: string
   corner: string // label for the top-left cell, e.g. "from ↓ to →"
   grid: GridModel
+  selectedKey: string | null
+  onSelect: (key: string) => void // click or Enter/Space opens the inspector
 }
 
 function AxisLabel({ axis, marker }: { axis: Axis; marker?: string }) {
@@ -36,12 +38,15 @@ function CellContent({ cell }: { cell: Cell }) {
   return (
     <>
       <span className="cell-rtt">{formatMs(cell.stats.medianMs)}</span>
-      <span className="cell-loss">{formatLoss(cell.stats.lossPct)}</span>
+      <span className="cell-loss">
+        {cell.pingFiltered && 'dns · '}
+        {formatLoss(cell.stats.lossPct)}
+      </span>
     </>
   )
 }
 
-export function HealthGrid({ caption, corner, grid }: HealthGridProps) {
+export function HealthGrid({ caption, corner, grid, selectedKey, onSelect }: HealthGridProps) {
   const [tooltip, setTooltip] = useState<TooltipAnchor | null>(null)
   const uniqueAxes = [...grid.rows, ...grid.columns].filter(
     (axis, index, all) => all.findIndex((other) => other.key === axis.key) === index,
@@ -51,6 +56,11 @@ export function HealthGrid({ caption, corner, grid }: HealthGridProps) {
   const show = (cell: Cell) => (event: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) =>
     setTooltip({ cell, rect: event.currentTarget.getBoundingClientRect() })
   const hide = () => setTooltip(null)
+  const selectOnKey = (key: string) => (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onSelect(key)
+  }
 
   // The tooltip is fixed-positioned from a measured rect, so drop it on scroll.
   useEffect(() => {
@@ -84,13 +94,17 @@ export function HealthGrid({ caption, corner, grid }: HealthGridProps) {
                   <AxisLabel axis={row} marker={markers.get(row.key)} />
                 </th>
                 {grid.columns.map((column) => {
-                  const cell = grid.cells.get(cellKey(row.key, column.key))
+                  const key = cellKey(row.key, column.key)
+                  const cell = grid.cells.get(key)
                   if (!cell) return <td key={column.key} className="cell is-self" aria-hidden />
                   return (
                     <td
                       key={column.key}
-                      className={`cell is-${cell.health}`}
+                      className={`cell is-${cell.health}${cell.pingFiltered ? ' is-filtered' : ''}${key === selectedKey ? ' is-selected' : ''}`}
                       tabIndex={0}
+                      aria-pressed={key === selectedKey}
+                      onClick={() => onSelect(key)}
+                      onKeyDown={selectOnKey(key)}
                       aria-label={`${row.label} to ${column.label}: ${formatMs(cell.stats.medianMs)} ms, ${formatLoss(cell.stats.lossPct)} loss`}
                       onMouseEnter={show(cell)}
                       onMouseLeave={hide}

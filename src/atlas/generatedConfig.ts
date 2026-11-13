@@ -14,16 +14,21 @@ export interface BackboneAnchor {
   company: string
   latitude: number
   longitude: number
+  af: 4 | 6
   pingMsmId: number // IPv4 anchor-mesh ping targeting this anchor
+  pingInterval: number // seconds
 }
 
 export interface RootServer {
   letter: string
   host: string
+  af: 4 | 6
   targetIp: string
   msmId: number
   kind: 'ping' | 'dns' // G-root does not answer ICMP; we use its DNS RTT instead
   interval: number
+  dnsMsmId: number | null // built-in hostname.bind query to the same address
+  dnsInterval: number // seconds; 0 when there is no hostname.bind measurement
 }
 
 export interface HomeIsp {
@@ -31,6 +36,7 @@ export interface HomeIsp {
   name: string
   asns: number[]
   probeIds: number[]
+  probeAsns: Record<string, number> // probe ID -> ASN, for debugging
   connectedProbes: number // before capping
 }
 

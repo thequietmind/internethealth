@@ -72,6 +72,11 @@ export function CellTooltip({ anchor }: { anchor: TooltipAnchor }) {
           ≤ {formatMs(cell.limits.goodMs)} / ≤ {formatMs(cell.limits.warnMs)} ms
         </dd>
       </dl>
+      {cell.pingFiltered && (
+        <div className="tooltip-note">
+          Ping filtered ({cell.pingFiltered.probes}/{cell.pingFiltered.of} probes): showing DNS query time.
+        </div>
+      )}
       {cell.error && <div className="tooltip-error">Request failed: {cell.error}</div>}
     </div>
   )
