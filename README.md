@@ -8,8 +8,8 @@ database, history, account or API key, and it never creates measurements.
 ## Run
 
 ```bash
-npm install
-npm run dev
+yarn
+yarn dev
 ```
 
 Open the URL Vite prints (default http://localhost:5173). The page fetches on load. After that,
@@ -64,13 +64,13 @@ first run (within 5 minutes). The function logs one JSON line per run (`written`
 
 The data source is chosen by `VITE_DATA_SOURCE` (`live` or `snapshot`). It defaults to `live` in
 dev and `snapshot` in builds. To try snapshot mode locally, put a snapshot at
-`public/snapshot.json` (git-ignored) and run `VITE_DATA_SOURCE=snapshot npm run dev`. The snapshot
+`public/snapshot.json` (git-ignored) and run `VITE_DATA_SOURCE=snapshot yarn dev`. The snapshot
 JSON is about 1.7 MB (about 210 KB gzipped), mostly the per-probe rows behind the inspector.
 
 ## Rerun discovery
 
 ```bash
-npm run discover
+yarn discover
 ```
 
 `scripts/discover.ts` queries the Atlas API and rewrites `src/config.generated.json`:

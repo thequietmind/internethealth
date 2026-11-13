@@ -1,7 +1,7 @@
 // Discovers anchor-mesh and built-in root-server measurement IDs plus home-ISP
 // probe IDs from the public RIPE Atlas API, and writes src/config.generated.json.
 //
-//   npm run discover
+//   yarn discover
 //
 // Read-only: it never creates measurements. Runs directly on Node >= 23.6
 // (native TypeScript type stripping), so only `import type` from src/.

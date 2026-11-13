@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev"],
       "port": 5173
     },
     {
       "name": "dev-snapshot",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "yarn",
       "runtimeArgs": ["vite", "--port", "5175", "--strictPort"],
       "env": { "VITE_DATA_SOURCE": "snapshot" },
       "port": 5175
