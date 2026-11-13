@@ -21,22 +21,24 @@ interface Selection {
 const HEALTH_ORDER: Health[] = ['good', 'warn', 'bad', 'nodata']
 const HEALTH_NAMES: Record<Health, string> = { good: 'ok', warn: 'degraded', bad: 'poor', nodata: 'no data' }
 
-function countHealth(grids: GridModel[]): Record<Health, number> {
+function countHealth(grid: GridModel): Record<Health, number> {
   const counts: Record<Health, number> = { good: 0, warn: 0, bad: 0, nodata: 0 }
-  for (const grid of grids) for (const cell of grid.cells.values()) counts[cell.health]++
+  for (const cell of grid.cells.values()) counts[cell.health]++
   return counts
 }
 
-function Summary({ report }: { report: Report }) {
-  const counts = countHealth([report.backbone, report.roots])
+// Status counts for one grid's cells, shown above that grid.
+function Summary({ grid, label }: { grid: GridModel; label: string }) {
+  const counts = countHealth(grid)
   return (
-    <div className="summary" aria-label="Cell status counts">
+    <div className="summary" aria-label={`${label} cell status counts`}>
       {HEALTH_ORDER.map((health) => (
         <span key={health} className="summary-item">
           <span className={`swatch is-${health}`} />
           <strong>{counts[health]}</strong> {HEALTH_NAMES[health]}
         </span>
       ))}
+      <span className="summary-total">of {grid.cells.size} cells</span>
     </div>
   )
 }
@@ -85,7 +87,6 @@ function Dashboard() {
           {report.failedRequests} Atlas request(s) failed; affected cells show as no data.
         </div>
       )}
-      {report && <Summary report={report} />}
 
       {!report && !error && (
         <div className="loading">
@@ -122,6 +123,7 @@ function Grids({ report }: { report: Report }) {
             {BACKBONE.versions} rounds. Row = source, column = target.
           </p>
         </header>
+        <Summary grid={report.backbone} label="Backbone matrix" />
         <HealthGrid
           caption="Backbone matrix"
           corner="from ↓ · to →"
@@ -144,6 +146,7 @@ function Grids({ report }: { report: Report }) {
             each network.
           </p>
         </header>
+        <Summary grid={report.roots} label="Root servers" />
         <HealthGrid
           caption="Root servers by ISP"
           corner="ISP ↓ · root →"

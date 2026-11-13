@@ -234,10 +234,15 @@ h1 {
 .summary {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px 18px;
-  margin: 12px 0 4px;
+  padding: 8px 10px 0;
   font-size: 11px;
   color: var(--muted);
+}
+
+.summary-total {
+  margin-left: auto;
 }
 
 .summary strong {
