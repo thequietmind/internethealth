@@ -354,16 +354,28 @@ h2 {
   padding: 0 8px 4px 0;
 }
 
+/* The label column stays put while the cells scroll sideways. The corner
+   must stick too, or the column headings slide under the row labels, and the
+   shadow paints over the border-spacing gap so cells don't peek through. */
+.corner,
+.row-head {
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  box-shadow: 2px 0 0 var(--panel);
+}
+
+.corner {
+  z-index: 2;
+}
+
 .column-head {
   padding: 0 4px 4px;
   min-width: 56px;
 }
 
 .row-head {
-  position: sticky;
-  left: 0;
   z-index: 1;
-  background: var(--panel);
   padding: 0 10px 0 0;
   white-space: nowrap;
   vertical-align: middle !important;
@@ -539,6 +551,52 @@ h2 {
   .updated {
     text-align: left;
     margin-right: auto;
+  }
+}
+
+/* Phones: drop the ASN/city lines (the tooltip and inspector still show
+   them) and tighten the cells, so more columns fit beside the sticky labels. */
+@media (max-width: 520px) {
+  .grid-wrap {
+    padding: 8px 6px 0;
+  }
+
+  .grid .axis-detail {
+    display: none;
+  }
+
+  /* "from ↓ · to →" is wider than the short labels; keep the cell, hide the text. */
+  .corner {
+    font-size: 0;
+  }
+
+  .row-head {
+    padding-right: 6px;
+    white-space: normal;
+    max-width: 92px;
+  }
+
+  .row-head .axis-label {
+    font-size: 11px;
+  }
+
+  .column-head {
+    min-width: 46px;
+    padding: 0 2px 4px;
+    font-size: 11px;
+  }
+
+  .cell {
+    height: 36px;
+    padding: 2px;
+  }
+
+  .cell-rtt {
+    font-size: 13px;
+  }
+
+  .cell-loss {
+    margin-top: 3px;
   }
 }
 
