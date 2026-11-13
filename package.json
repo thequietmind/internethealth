@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:snapshot": "vite --mode snapshot",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "discover": "node scripts/discover.ts"
+    "discover": "node scripts/discover.ts",
+    "snapshot": "node scripts/snapshot.ts"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.9",

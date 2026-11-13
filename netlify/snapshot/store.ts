@@ -17,7 +17,8 @@ export function blobSnapshotStore(): SnapshotStore {
       await store.setJSON(BACKOFF_KEY, state)
     },
     async writeSnapshot(snapshot) {
-      await store.setJSON(SNAPSHOT_KEY, snapshot)
+      // generatedAt as metadata lets the endpoint answer 304s without reading the body.
+      await store.setJSON(SNAPSHOT_KEY, snapshot, { metadata: { generatedAt: snapshot.generatedAt } })
     },
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { CellInspector } from './components/CellInspector.tsx'
 import { HealthGrid } from './components/HealthGrid.tsx'
 import { LoadingIndicator } from './components/LoadingIndicator.tsx'
@@ -6,10 +6,10 @@ import { RefreshSelect } from './components/RefreshSelect.tsx'
 import { useNow } from './components/useNow.ts'
 import { useRefreshMinutes } from './components/useRefreshMinutes.ts'
 import { ThemeToggle } from './components/ThemeToggle.tsx'
-import { formatClock, formatMs } from './components/format.ts'
+import { formatClock, formatMs, formatTime } from './components/format.ts'
 import type { GridModel, Report } from './health/report.ts'
 import type { Health } from './health/stats.ts'
-import { DATA_SOURCE } from './health/source.ts'
+import { DATA_SOURCE, everyInterval, followSnapshots, nextSnapshotAt } from './health/source.ts'
 import { useHealthReport } from './health/useHealthReport.ts'
 import { BACKBONE, ROOTS, SNAPSHOT } from './thresholds.ts'
 
@@ -45,18 +45,30 @@ function Summary({ grid, label }: { grid: GridModel; label: string }) {
   )
 }
 
-// Warns when the shared snapshot has stopped updating (the scheduled job is
-// failing or backing off), so old data is never shown as current.
-function StaleBanner({ report }: { report: Report }) {
-  const now = useNow(30_000)
-  const ageMinutes = Math.floor((now - report.fetchedAt) / 60_000)
-  if (report.source !== 'snapshot' || ageMinutes < SNAPSHOT.staleAfterMinutes) return null
+// "Snapshot from 1:27:11 PM · next ≈ 1:32 PM". Once the next one is due the
+// page checks every minute; if it's well overdue (the job is failing or
+// backing off), say so quietly. The timestamp already tells the truth about
+// the data's age, so this is a note, not an error.
+function snapshotNote(report: Report, now: number): string {
+  const nextAt = nextSnapshotAt(report)
+  if (now < nextAt) return `next ≈ ${formatTime(nextAt)}`
+  if (now - report.fetchedAt < SNAPSHOT.lateAfterMinutes * 60_000) return 'checking for the next one'
+  return 'next one is running late'
+}
+
+function SnapshotStatus({ report }: { report: Report }) {
+  const now = useNow(15_000)
   return (
-    <div className="banner is-error">
-      This snapshot is {ageMinutes} minutes old; snapshots normally update every {SNAPSHOT.intervalMinutes} minutes.
-      The cells show the network as of {formatClock(report.fetchedAt)}, not now.
-    </div>
+    <>
+      Snapshot from {formatClock(report.fetchedAt)} · {snapshotNote(report, now)}
+    </>
   )
+}
+
+function cadenceText(refreshMinutes: number): string {
+  if (DATA_SOURCE === 'snapshot') return 'The page picks up each new snapshot automatically.'
+  if (!refreshMinutes) return 'Auto-refresh is off.'
+  return `Refreshes every ${refreshMinutes === 60 ? 'hour' : `${refreshMinutes} minutes`}.`
 }
 
 const SOURCE_TEXT =
@@ -65,45 +77,57 @@ const SOURCE_TEXT =
     : 'Latency and packet loss right now, from public RIPE Atlas measurements.'
 
 function Dashboard() {
+  // Live mode (local dev) refreshes on the viewer's chosen interval or on
+  // demand; snapshot mode follows the snapshot schedule, so it has no controls.
   const [refreshMinutes, setRefreshMinutes] = useRefreshMinutes()
-  const { report, loading, error, refresh } = useHealthReport(refreshMinutes ? refreshMinutes * 60_000 : null)
-  const cadence = refreshMinutes
-    ? `Refreshes every ${refreshMinutes === 60 ? 'hour' : `${refreshMinutes} minutes`}.`
-    : 'Auto-refresh is off.'
+  const schedule = useMemo(
+    () => (DATA_SOURCE === 'snapshot' ? followSnapshots : everyInterval(refreshMinutes ? refreshMinutes * 60_000 : null)),
+    [refreshMinutes],
+  )
+  const { report, loading, error, refresh } = useHealthReport(schedule)
+  const isLive = DATA_SOURCE === 'live'
+  // Snapshot checks after the first load run quietly in the background: no
+  // "Updating…", sweep or dimming every few minutes.
+  const updating = loading && (isLive || !report)
 
   return (
     <>
-      <header className="masthead" data-loading={loading}>
+      <header className="masthead" data-loading={updating}>
         <div>
           <h1>
-            Internet Health Report <span className="blink-dot" data-live={!loading && !error} />
+            Internet Health Report <span className="blink-dot" data-live={!updating && !error} />
           </h1>
           <p className="tagline">
-            {SOURCE_TEXT} {cadence}
+            {SOURCE_TEXT} {cadenceText(refreshMinutes)}
           </p>
         </div>
         <div className="controls">
           <span className="updated">
-            {loading && report ? (
+            {updating && report ? (
               <LoadingIndicator label="Updating…" />
-            ) : loading ? (
+            ) : updating ? (
               '—' // the first load has its own indicator below
+            ) : report?.source === 'snapshot' ? (
+              <SnapshotStatus report={report} />
             ) : report ? (
-              `${report.source === 'snapshot' ? 'Snapshot from' : 'Updated'} ${formatClock(report.fetchedAt)}`
+              `Updated ${formatClock(report.fetchedAt)}`
             ) : (
               '—'
             )}
           </span>
-          <button type="button" className="button" onClick={refresh} disabled={loading}>
-            Refresh
-          </button>
-          <RefreshSelect value={refreshMinutes} onChange={setRefreshMinutes} />
+          {isLive && (
+            <>
+              <button type="button" className="button" onClick={refresh} disabled={loading}>
+                Refresh
+              </button>
+              <RefreshSelect value={refreshMinutes} onChange={setRefreshMinutes} />
+            </>
+          )}
           <ThemeToggle />
         </div>
       </header>
 
       {error && <div className="banner is-error">Could not load data: {error}</div>}
-      {report && <StaleBanner report={report} />}
       {report && report.failedRequests > 0 && (
         <div className="banner">
           {report.failedRequests} Atlas request(s) failed; affected cells show as no data.
@@ -116,7 +140,7 @@ function Dashboard() {
         </div>
       )}
       {report && (
-        <div className="grids" aria-busy={loading} data-refreshing={loading}>
+        <div className="grids" aria-busy={updating} data-refreshing={updating}>
           <Grids report={report} />
         </div>
       )}

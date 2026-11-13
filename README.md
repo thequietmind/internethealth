@@ -16,7 +16,8 @@ Open the URL Vite prints (default http://localhost:5173). The page fetches on lo
 it refreshes on the **Auto-refresh** schedule you pick in the header: off, every 15 minutes, every
 30 minutes (the default), or every hour. It only refreshes while the tab is visible, and the
 browser remembers your choice. **Refresh** fetches immediately. The default and the choices live in
-`src/thresholds.ts`.
+`src/thresholds.ts`. These two controls only appear in live mode; in snapshot mode the page
+follows the snapshot schedule instead (see below).
 
 In dev, each refresh reads Atlas directly ("live" mode): 20 GET requests (7 backbone + 13 root
 servers), plus one DNS request per root column that shows ping loss, at most 4 in flight. Each
@@ -42,9 +43,15 @@ read one shared snapshot, and Atlas load stays fixed however many people look:
   roughly 300–400 an hour.
 - **`netlify/functions/snapshot.ts`** serves it at `/snapshot.json`. The CDN caches it for a
   minute, so visitor traffic reaches the function at most about once a minute per edge.
-- **The page** reads `snapshot.json` on load and on its auto-refresh schedule. The header shows
-  when the snapshot was taken. Ratings and freshness are computed at snapshot time, and if the
-  snapshot is more than 12 minutes old the page says so, so stale data is never shown as current.
+- **The page** reads `snapshot.json` on load, then checks again about a minute after the next
+  snapshot is due (once it's due, every minute until it appears). There's no Refresh button or
+  auto-refresh menu in this mode, because clicking couldn't make the data any newer. The header
+  shows when the snapshot was taken and when the next one is expected. Ratings and freshness are
+  computed at snapshot time. If no new snapshot has arrived 12 minutes after the last one (the job
+  is failing or backing off), the header quietly says the next one is running late.
+- **Checks are cheap.** The endpoint sends an `ETag` built from the snapshot's time (stored as blob
+  metadata), so a check that finds nothing new gets a body-less `304` instead of the full
+  snapshot again.
 
 The snapshot function is a polite Atlas client:
 
@@ -62,10 +69,23 @@ functions only run on the published production deploy, so `/snapshot.json` retur
 first run (within 5 minutes). The function logs one JSON line per run (`written`, `skipped` or
 `failed`, with the reason) in the Netlify functions log.
 
+The snapshot JSON is about 1.7 MB (about 200 KB compressed), mostly the per-probe rows behind the
+inspector.
+
+### Snapshot mode locally
+
 The data source is chosen by `VITE_DATA_SOURCE` (`live` or `snapshot`). It defaults to `live` in
-dev and `snapshot` in builds. To try snapshot mode locally, put a snapshot at
-`public/snapshot.json` (git-ignored) and run `VITE_DATA_SOURCE=snapshot yarn dev`. The snapshot
-JSON is about 1.7 MB (about 210 KB gzipped), mostly the per-probe rows behind the inspector.
+dev and `snapshot` in builds. To run the page locally exactly as the production site runs it:
+
+```bash
+yarn snapshot       # build a snapshot from Atlas into public/snapshot.json (git-ignored)
+yarn dev:snapshot   # dev server that reads it (VITE_DATA_SOURCE=snapshot via .env.snapshot)
+```
+
+`yarn snapshot` runs the same code as the Netlify job, User-Agent and stop-on-error included, but
+writes a file instead of a blob. Nothing reruns it on a schedule, so after 12 minutes the header
+says the next snapshot is running late, which is also how you test that note. Run `yarn snapshot` again while
+the page is open and it picks up the new snapshot on its next check, as the live site does.
 
 ## Rerun discovery
 
@@ -169,9 +189,10 @@ src/atlas/                   API types, fetch + concurrency, generated-config ty
 src/health/stats.ts          per-cell aggregation and rating
 src/health/report.ts         builds both grid models from one batch of requests
 src/health/snapshot.ts       snapshot JSON format (shared by page and function)
-src/health/source.ts         live vs snapshot data source
+src/health/source.ts         live vs snapshot data source and refresh schedules
 src/health/useHealthReport.ts  polling hook
 src/components/              grid, tooltip, inspector, controls
 netlify/functions/           scheduled snapshot job and the /snapshot.json endpoint
-netlify/snapshot/            the snapshot run, back-off, and Blobs storage
+netlify/snapshot/            the snapshot run, back-off, Blobs storage, and the ETag response
+scripts/snapshot.ts          local snapshot → public/snapshot.json
 ```

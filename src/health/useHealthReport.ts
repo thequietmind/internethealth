@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Report } from './report.ts'
-import { loadLatest } from './source.ts'
+import { loadLatest, type RefreshSchedule } from './source.ts'
 
 export interface HealthReportState {
   report: Report | null
@@ -11,10 +11,10 @@ export interface HealthReportState {
 
 const TICK_MS = 15_000
 
-// Loads on mount, then every `intervalMs` (null = auto-refresh off; manual
-// refresh still works). Skips ticks while the tab is hidden and catches up as
-// soon as it becomes visible again.
-export function useHealthReport(intervalMs: number | null): HealthReportState {
+// Loads on mount, then whenever `schedule` says the next fetch is due (pass a
+// stable function, e.g. from useMemo). Skips ticks while the tab is hidden and
+// catches up as soon as it becomes visible again.
+export function useHealthReport(schedule: RefreshSchedule): HealthReportState {
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,10 +49,10 @@ export function useHealthReport(intervalMs: number | null): HealthReportState {
   }, [refresh])
 
   useEffect(() => {
-    if (intervalMs === null) return
     const refreshIfDue = () => {
       if (document.hidden) return
-      if (Date.now() - lastFetchRef.current >= intervalMs) refresh()
+      const dueAt = schedule(lastFetchRef.current, report)
+      if (dueAt !== null && Date.now() >= dueAt) refresh()
     }
     const timer = setInterval(refreshIfDue, TICK_MS)
     document.addEventListener('visibilitychange', refreshIfDue)
@@ -60,7 +60,7 @@ export function useHealthReport(intervalMs: number | null): HealthReportState {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', refreshIfDue)
     }
-  }, [intervalMs, refresh])
+  }, [schedule, report, refresh])
 
   return { report, loading, error, refresh }
 }

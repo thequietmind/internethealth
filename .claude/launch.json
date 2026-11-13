@@ -10,8 +10,7 @@
     {
       "name": "dev-snapshot",
       "runtimeExecutable": "yarn",
-      "runtimeArgs": ["vite", "--port", "5175", "--strictPort"],
-      "env": { "VITE_DATA_SOURCE": "snapshot" },
+      "runtimeArgs": ["dev:snapshot", "--port", "5175", "--strictPort"],
       "port": 5175
     }
   ]
