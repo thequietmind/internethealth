@@ -124,6 +124,7 @@ p {
 }
 
 .masthead {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 12px 24px;
@@ -668,4 +669,105 @@ h2 {
 
 .refresh-select select {
   text-transform: none;
+}
+
+/* Loading ------------------------------------------------------------------ */
+
+.loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-indicator.is-large {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading-matrix {
+  display: grid;
+  grid-template-columns: repeat(3, var(--square));
+  gap: var(--square-gap);
+  --square: 3px;
+  --square-gap: 1px;
+}
+
+.is-large .loading-matrix {
+  --square: 12px;
+  --square-gap: 3px;
+}
+
+.loading-matrix span {
+  width: var(--square);
+  height: var(--square);
+  background: var(--good);
+  opacity: 0.25;
+  animation: light-up 1.2s ease-in-out infinite;
+}
+
+/* One square in the wave flashes yellow, a nod to the grid's colours. */
+.loading-matrix span:nth-child(6) {
+  background: var(--warn);
+}
+
+@keyframes light-up {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+/* Indeterminate bar on the masthead's bottom rule while any load runs. */
+.masthead::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  opacity: 0;
+  transition: opacity 200ms;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
+  background-size: 30% 100%;
+}
+
+.masthead[data-loading='true']::after {
+  opacity: 1;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+/* Existing data stays readable but recedes slightly while it's being replaced. */
+.grids {
+  transition: opacity 200ms;
+}
+
+.grids[data-refreshing='true'] {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-matrix span {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  .masthead[data-loading='true']::after {
+    animation: none;
+    background-size: 100% 100%;
+    background-image: linear-gradient(90deg, var(--accent), var(--accent));
+    opacity: 0.6;
+  }
 }

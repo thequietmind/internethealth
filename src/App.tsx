@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { CellInspector } from './components/CellInspector.tsx'
 import { HealthGrid } from './components/HealthGrid.tsx'
+import { LoadingIndicator } from './components/LoadingIndicator.tsx'
 import { RefreshSelect } from './components/RefreshSelect.tsx'
 import { useRefreshMinutes } from './components/useRefreshMinutes.ts'
 import { ThemeToggle } from './components/ThemeToggle.tsx'
@@ -49,7 +50,7 @@ function Dashboard() {
 
   return (
     <>
-      <header className="masthead">
+      <header className="masthead" data-loading={loading}>
         <div>
           <h1>
             Internet Health Report <span className="blink-dot" data-live={!loading && !error} />
@@ -60,7 +61,15 @@ function Dashboard() {
         </div>
         <div className="controls">
           <span className="updated">
-            {loading ? 'Updating…' : report ? `Updated ${formatClock(report.fetchedAt)}` : '—'}
+            {loading && report ? (
+              <LoadingIndicator label="Updating…" />
+            ) : loading ? (
+              '—' // the first load has its own indicator below
+            ) : report ? (
+              `Updated ${formatClock(report.fetchedAt)}`
+            ) : (
+              '—'
+            )}
           </span>
           <button type="button" className="button" onClick={refresh} disabled={loading}>
             Refresh
@@ -78,8 +87,16 @@ function Dashboard() {
       )}
       {report && <Summary report={report} />}
 
-      {!report && !error && <div className="loading">Fetching latest results from RIPE Atlas…</div>}
-      {report && <Grids report={report} />}
+      {!report && !error && (
+        <div className="loading">
+          <LoadingIndicator size="large" label="Fetching latest results from RIPE Atlas…" />
+        </div>
+      )}
+      {report && (
+        <div className="grids" aria-busy={loading} data-refreshing={loading}>
+          <Grids report={report} />
+        </div>
+      )}
     </>
   )
 }
