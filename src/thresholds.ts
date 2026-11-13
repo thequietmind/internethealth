@@ -4,7 +4,7 @@
 // Atlas built-ins run every 4 minutes, so shorter intervals add little.
 export const REFRESH_OPTIONS_MINUTES = [0, 15, 30, 60] as const
 export type RefreshMinutes = (typeof REFRESH_OPTIONS_MINUTES)[number]
-export const DEFAULT_REFRESH_MINUTES: RefreshMinutes = 15
+export const DEFAULT_REFRESH_MINUTES: RefreshMinutes = 30
 export const MAX_CONCURRENT_REQUESTS = 4
 
 export interface LossThresholds {

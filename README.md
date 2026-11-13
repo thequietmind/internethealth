@@ -13,8 +13,8 @@ npm run dev
 ```
 
 Open the URL Vite prints (default http://localhost:5173). The page fetches on load. After that,
-it refreshes on the **Auto-refresh** schedule you pick in the header: off, every 15 minutes (the
-default), every 30 minutes, or every hour. It only refreshes while the tab is visible, and the
+it refreshes on the **Auto-refresh** schedule you pick in the header: off, every 15 minutes, every
+30 minutes (the default), or every hour. It only refreshes while the tab is visible, and the
 browser remembers your choice. **Refresh** fetches immediately. The default and the choices live in
 `src/thresholds.ts`.
 
