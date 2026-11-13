@@ -6,6 +6,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "dev-snapshot",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5175", "--strictPort"],
+      "env": { "VITE_DATA_SOURCE": "snapshot" },
+      "port": 5175
     }
   ]
 }

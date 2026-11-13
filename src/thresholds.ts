@@ -7,6 +7,21 @@ export type RefreshMinutes = (typeof REFRESH_OPTIONS_MINUTES)[number]
 export const DEFAULT_REFRESH_MINUTES: RefreshMinutes = 30
 export const MAX_CONCURRENT_REQUESTS = 4
 
+// Production reads one shared snapshot instead of calling Atlas per visitor.
+// A scheduled function rebuilds it every `intervalMinutes`; the cron expression
+// in netlify/functions/snapshot-refresh.ts must match. The page warns once the
+// snapshot is older than `staleAfterMinutes` (two missed runs plus slack).
+export const SNAPSHOT = {
+  intervalMinutes: 5,
+  staleAfterMinutes: 12,
+  // Back-off after a throttled (429), failing (5xx) or timed-out run: wait
+  // 5, 10, 20, 40, then 60 minutes between attempts, or longer if Atlas sends
+  // Retry-After. A successful run resets it.
+  backoffBaseMinutes: 5,
+  backoffMaxMinutes: 60,
+  runTimeoutSeconds: 25, // Netlify stops scheduled functions at 30 s
+} as const
+
 export interface LossThresholds {
   warnPct: number // loss above this is at least yellow
   badPct: number // loss above this is red

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { ATLAS_API, latestUrl } from '../atlas/client.ts'
 import type { Cell, MeasurementRef } from '../health/report.ts'
 import type { ProbeStatus } from '../health/stats.ts'
 import { formatAge, formatLoss, formatMs } from './format.ts'
@@ -14,12 +15,8 @@ const STATUS_TEXT: Record<ProbeStatus, string> = {
   'no-result': 'no result (excluded)',
 }
 
-function rawLatestUrl(measurement: MeasurementRef): string {
-  const { id, probeIds, versions } = measurement
-  const params = new URLSearchParams({ probe_ids: probeIds.join(',') })
-  if (versions > 1) params.set('versions', String(versions))
-  return `/atlas/measurements/${id}/latest/?${params}`
-}
+// Direct to Atlas, so the link works without the dev proxy.
+const rawLatestUrl = ({ id, probeIds, versions }: MeasurementRef) => latestUrl(ATLAS_API, id, probeIds, versions)
 
 function MeasurementLinks({ measurement }: { measurement: MeasurementRef }) {
   return (

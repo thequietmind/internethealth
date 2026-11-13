@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local snapshot for VITE_DATA_SOURCE=snapshot
+public/snapshot.json

@@ -18,16 +18,54 @@ it refreshes on the **Auto-refresh** schedule you pick in the header: off, every
 browser remembers your choice. **Refresh** fetches immediately. The default and the choices live in
 `src/thresholds.ts`.
 
-Each refresh is 20 GET requests (7 backbone + 13 root servers), at most 4 in flight. Each one is
-filtered to only the probes we need.
+In dev, each refresh reads Atlas directly ("live" mode): 20 GET requests (7 backbone + 13 root
+servers), plus one DNS request per root column that shows ping loss, at most 4 in flight. Each
+request is filtered to only the probes we need.
 
 ### The Atlas proxy
 
-Requests go to `/atlas/*`, which the Vite dev server proxies to `https://atlas.ripe.net/api/v2/*`
-(see `vite.config.ts`). Atlas does in fact send CORS headers (it echoes back the request `Origin`),
-so the proxy isn't strictly required. It's kept so the app makes same-origin requests and doesn't
-depend on that behaviour. `npm run build` output has no proxy, so serve it behind something
-equivalent or point `API_BASE` in `src/atlas/client.ts` at Atlas directly.
+In live mode, requests go to `/atlas/*`, which the Vite dev server proxies to
+`https://atlas.ripe.net/api/v2/*` (see `vite.config.ts`). Atlas does in fact send CORS headers (it
+echoes back the request `Origin`), so the proxy isn't strictly required. It's kept so the app makes
+same-origin requests and doesn't depend on that behaviour. Production builds don't use it: they
+read the shared snapshot instead (see below).
+
+## Deploying: the shared snapshot
+
+A public page must not call Atlas once per visitor; a busy day would multiply the load on a
+volunteer-supported platform for data that only changes every 4 minutes. So production builds
+read one shared snapshot, and Atlas load stays fixed however many people look:
+
+- **`netlify/functions/snapshot-refresh.ts`** is a Netlify scheduled function. It runs every 5
+  minutes, offset from the hour (`2-59/5 * * * *`: :02, :07, …), builds the same report the page
+  builds in live mode, and stores it in Netlify Blobs. That's about 26–33 requests per run, or
+  roughly 300–400 an hour.
+- **`netlify/functions/snapshot.ts`** serves it at `/snapshot.json`. The CDN caches it for a
+  minute, so visitor traffic reaches the function at most about once a minute per edge.
+- **The page** reads `snapshot.json` on load and on its auto-refresh schedule. The header shows
+  when the snapshot was taken. Ratings and freshness are computed at snapshot time, and if the
+  snapshot is more than 12 minutes old the page says so, so stale data is never shown as current.
+
+The snapshot function is a polite Atlas client:
+
+- **It identifies itself** with `User-Agent: internethealth-snapshot/1.0 (+<contact>)`. The contact
+  is Netlify's `URL` (the site's address), or set `SNAPSHOT_CONTACT` in the site's environment
+  variables to an email address or project page.
+- **It never retries.** The first 429, 5xx or network error stops the whole run, and nothing more is
+  sent. The previous snapshot stays in place (and goes stale on the page).
+- **It backs off.** After a failed run it waits 5, 10, 20, 40, then 60 minutes between attempts,
+  or longer if Atlas sends `Retry-After`. A successful run resets this. A run that takes longer
+  than 25 s is stopped and counts as a failure (Netlify allows scheduled functions 30 s).
+
+To deploy, create a Netlify site from this repo; `netlify.toml` sets the build. Scheduled
+functions only run on the published production deploy, so `/snapshot.json` returns 503 until the
+first run (within 5 minutes). The function logs one JSON line per run (`written`, `skipped` or
+`failed`, with the reason) in the Netlify functions log.
+
+The data source is chosen by `VITE_DATA_SOURCE` (`live` or `snapshot`). It defaults to `live` in
+dev and `snapshot` in builds. To try snapshot mode locally, put a snapshot at
+`public/snapshot.json` (git-ignored) and run `VITE_DATA_SOURCE=snapshot npm run dev`. The snapshot
+JSON is about 1.7 MB (about 210 KB gzipped), mostly the per-probe rows behind the inspector.
 
 ## Rerun discovery
 
@@ -118,17 +156,22 @@ Click a cell (or press Enter on it) to open the inspector, which shows:
 - **Home-to-CDN-cache paths aren't measurable this way.** Most real traffic goes to CDN caches
   inside or next to the ISP, and nothing here measures those. A red root cell rarely means
   "Netflix is down".
-- **There's no history.** Each cell is a snapshot of the latest results, a few minutes old at most.
+- **There's no history.** Each cell is a snapshot of the latest results, a few minutes old at most
+  (up to about 10 minutes when reading the shared snapshot).
   There's no baseline, so "unusual for this pair" isn't detected. Only the thresholds are.
 
 ## Layout
 
 ```
 scripts/discover.ts          discovery → src/config.generated.json
-src/thresholds.ts            all tunables
+src/thresholds.ts            all tunables, including the snapshot schedule and back-off
 src/atlas/                   API types, fetch + concurrency, generated-config types
 src/health/stats.ts          per-cell aggregation and rating
 src/health/report.ts         builds both grid models from one batch of requests
+src/health/snapshot.ts       snapshot JSON format (shared by page and function)
+src/health/source.ts         live vs snapshot data source
 src/health/useHealthReport.ts  polling hook
-src/components/              grid, tooltip, theme toggle
+src/components/              grid, tooltip, inspector, controls
+netlify/functions/           scheduled snapshot job and the /snapshot.json endpoint
+netlify/snapshot/            the snapshot run, back-off, and Blobs storage
 ```

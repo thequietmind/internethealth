@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadReport, type Report } from './report.ts'
+import type { Report } from './report.ts'
+import { loadLatest } from './source.ts'
 
 export interface HealthReportState {
   report: Report | null
@@ -27,7 +28,7 @@ export function useHealthReport(intervalMs: number | null): HealthReportState {
     lastFetchRef.current = Date.now()
     setLoading(true)
 
-    loadReport(controller.signal)
+    loadLatest(controller.signal)
       .then((next) => {
         setReport(next)
         setError(null)

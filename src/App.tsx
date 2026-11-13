@@ -3,13 +3,15 @@ import { CellInspector } from './components/CellInspector.tsx'
 import { HealthGrid } from './components/HealthGrid.tsx'
 import { LoadingIndicator } from './components/LoadingIndicator.tsx'
 import { RefreshSelect } from './components/RefreshSelect.tsx'
+import { useNow } from './components/useNow.ts'
 import { useRefreshMinutes } from './components/useRefreshMinutes.ts'
 import { ThemeToggle } from './components/ThemeToggle.tsx'
 import { formatClock, formatMs } from './components/format.ts'
 import type { GridModel, Report } from './health/report.ts'
 import type { Health } from './health/stats.ts'
+import { DATA_SOURCE } from './health/source.ts'
 import { useHealthReport } from './health/useHealthReport.ts'
-import { BACKBONE, ROOTS } from './thresholds.ts'
+import { BACKBONE, ROOTS, SNAPSHOT } from './thresholds.ts'
 
 type GridName = 'backbone' | 'roots'
 
@@ -43,6 +45,25 @@ function Summary({ grid, label }: { grid: GridModel; label: string }) {
   )
 }
 
+// Warns when the shared snapshot has stopped updating (the scheduled job is
+// failing or backing off), so old data is never shown as current.
+function StaleBanner({ report }: { report: Report }) {
+  const now = useNow(30_000)
+  const ageMinutes = Math.floor((now - report.fetchedAt) / 60_000)
+  if (report.source !== 'snapshot' || ageMinutes < SNAPSHOT.staleAfterMinutes) return null
+  return (
+    <div className="banner is-error">
+      This snapshot is {ageMinutes} minutes old; snapshots normally update every {SNAPSHOT.intervalMinutes} minutes.
+      The cells show the network as of {formatClock(report.fetchedAt)}, not now.
+    </div>
+  )
+}
+
+const SOURCE_TEXT =
+  DATA_SOURCE === 'snapshot'
+    ? `Latency and packet loss from public RIPE Atlas measurements, snapshotted every ${SNAPSHOT.intervalMinutes} minutes.`
+    : 'Latency and packet loss right now, from public RIPE Atlas measurements.'
+
 function Dashboard() {
   const [refreshMinutes, setRefreshMinutes] = useRefreshMinutes()
   const { report, loading, error, refresh } = useHealthReport(refreshMinutes ? refreshMinutes * 60_000 : null)
@@ -58,7 +79,7 @@ function Dashboard() {
             Internet Health Report <span className="blink-dot" data-live={!loading && !error} />
           </h1>
           <p className="tagline">
-            Latency and packet loss right now, from public RIPE Atlas measurements. {cadence}
+            {SOURCE_TEXT} {cadence}
           </p>
         </div>
         <div className="controls">
@@ -68,7 +89,7 @@ function Dashboard() {
             ) : loading ? (
               '—' // the first load has its own indicator below
             ) : report ? (
-              `Updated ${formatClock(report.fetchedAt)}`
+              `${report.source === 'snapshot' ? 'Snapshot from' : 'Updated'} ${formatClock(report.fetchedAt)}`
             ) : (
               '—'
             )}
@@ -82,6 +103,7 @@ function Dashboard() {
       </header>
 
       {error && <div className="banner is-error">Could not load data: {error}</div>}
+      {report && <StaleBanner report={report} />}
       {report && report.failedRequests > 0 && (
         <div className="banner">
           {report.failedRequests} Atlas request(s) failed; affected cells show as no data.

@@ -1,4 +1,4 @@
-import { fetchLatest, mapWithConcurrency } from '../atlas/client.ts'
+import { fetchLatest, mapWithConcurrency, type AtlasOptions } from '../atlas/client.ts'
 import type { BackboneAnchor, GeneratedConfig, HomeIsp, RootServer } from '../atlas/generatedConfig.ts'
 import type { LatestResult } from '../atlas/types.ts'
 import generated from '../config.generated.json'
@@ -58,8 +58,9 @@ export interface GridModel {
 export interface Report {
   backbone: GridModel
   roots: GridModel
-  fetchedAt: number // ms
+  fetchedAt: number // ms: when the Atlas results were read (snapshot time for snapshots)
   failedRequests: number
+  source: 'live' | 'snapshot'
 }
 
 export const cellKey = (rowKey: string, columnKey: string) => `${rowKey}|${columnKey}`
@@ -284,9 +285,9 @@ interface Job {
   versions: number
 }
 
-async function runJobs(jobs: Job[], signal?: AbortSignal) {
+async function runJobs(jobs: Job[], atlas: AtlasOptions, signal?: AbortSignal) {
   const settled = await mapWithConcurrency(jobs, MAX_CONCURRENT_REQUESTS, (job) =>
-    fetchLatest(job.measurementId, job.probeIds, job.versions, signal),
+    fetchLatest(atlas, job.measurementId, job.probeIds, job.versions, signal),
   )
   signal?.throwIfAborted()
   const fetched: Fetched[] = settled.map((outcome) =>
@@ -298,7 +299,7 @@ async function runJobs(jobs: Job[], signal?: AbortSignal) {
 // Phase 1: one request per backbone target anchor and one per root server.
 // Phase 2: hostname.bind results, only for root columns that showed ping loss,
 // to tell real loss from ICMP filtering. All filtered to our probes.
-export async function loadReport(signal?: AbortSignal): Promise<Report> {
+export async function loadReport(atlas: AtlasOptions, signal?: AbortSignal): Promise<Report> {
   const { anchors } = config.backbone
   const { servers, isps } = config.roots
   const anchorProbeIds = anchors.map((anchor) => anchor.probeId)
@@ -309,6 +310,7 @@ export async function loadReport(signal?: AbortSignal): Promise<Report> {
       ...anchors.map((anchor) => ({ measurementId: anchor.pingMsmId, probeIds: anchorProbeIds, versions: BACKBONE.versions })),
       ...servers.map((server) => ({ measurementId: server.msmId, probeIds: ispProbeIds, versions: ROOTS.versions })),
     ],
+    atlas,
     signal,
   )
   const pingByServer = phase1.fetched.slice(anchors.length)
@@ -317,6 +319,7 @@ export async function loadReport(signal?: AbortSignal): Promise<Report> {
   const dnsServers = servers.filter((server, index) => needsDnsCheck(server, pingByServer[index], isps, nowSeconds))
   const phase2 = await runJobs(
     dnsServers.map((server) => ({ measurementId: server.dnsMsmId!, probeIds: ispProbeIds, versions: ROOTS.versions })),
+    atlas,
     signal,
   )
   const dnsByLetter = new Map(dnsServers.map((server, index) => [server.letter, phase2.fetched[index]]))
@@ -333,6 +336,7 @@ export async function loadReport(signal?: AbortSignal): Promise<Report> {
     roots: buildRoots(columns, isps, builtAt),
     fetchedAt: Date.now(),
     failedRequests: phase1.failed + phase2.failed,
+    source: 'live',
   }
 }
 
